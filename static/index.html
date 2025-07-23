@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Data Agent</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  background-color: #f4f7fa;
+  margin: 0;
+  padding: 0;
+  color: #333;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+body.dark {
+  background-color: #1e1e1e;
+  color: #ddd;
+}
+
+.header {
+  background-color: #4a90e2;
+  color: white;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header img {
+  height: 50px;
+  margin-right: 15px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 20px auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  padding: 20px;
+  transition: background 0.3s;
+}
+
+body.dark .container {
+  background: #2c2c2c;
+}
+
+input, button, select {
+  padding: 10px;
+  margin: 5px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+button {
+  cursor: pointer;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+}
+
+button:hover {
+  background-color: #3b7bd1;
+}
+
+#result {
+  margin-top: 20px;
+  background: #eef5ff;
+  padding: 15px;
+  border-radius: 6px;
+  min-height: 50px;
+  white-space: pre-wrap;
+  font-family: monospace;
+}
+
+body.dark #result {
+  background: #3a3f52;
+}
+
+#chart-container {
+  margin-top: 30px;
+  text-align: center;
+}
+
+canvas {
+  margin-top: 10px;
+}
+
+.agent-avatar {
+  height: 40px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+#history {
+  margin-top: 30px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fafafa;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+body.dark #history {
+  background: #444;
+}
+
+.history-entry {
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #f0f4ff;
+  border-radius: 4px;
+}
+
+body.dark .history-entry {
+  background: #555;
+}
+
+.toggle-dark {
+  cursor: pointer;
+  background: #333;
+  color: white;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  margin-left: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <img src="https://cdn-icons-png.flaticon.com/512/4712/4712027.png" alt="AI Agent">
+    <strong>AI Data Agent</strong>
+  </div>
+  <button class="toggle-dark" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+</div>
+
+<div class="container">
+
+  <div>
+    <input type="text" id="question" placeholder="Ask me about your data..." size="50">
+    <select id="chartType">
+      <option value="bar">Bar</option>
+      <option value="line">Line</option>
+      <option value="pie">Pie</option>
+      <option value="doughnut">Doughnut</option>
+    </select>
+    <button onclick="askQuestion()">Get Answer</button>
+    <button onclick="getChart()">Get Chart</button>
+    <button onclick="downloadChart()">Download Chart</button>
+    <button onclick="clearHistory()">Clear History</button>
+  </div>
+
+  <div id="result"></div>
+
+  <div id="chart-container">
+    <canvas id="myChart" width="600" height="400" style="max-width:600px;"></canvas>
+  </div>
+
+  <h3>Conversation History:</h3>
+  <div id="history"></div>
+
+</div>
+
+<script>
+let currentChart = null;
+
+function typeAnswer(element, text, speed=10) {
+    element.innerHTML = "";
+    let i = 0;
+    function type() {
+        if (i < text.length) {
+            if (text[i] === '\n') {
+                element.innerHTML += "<br>";
+            } else {
+                element.innerHTML += text[i];
+            }
+            i++;
+            setTimeout(type, speed);
+        }
+    }
+    type();
+}
+
+function addToHistory(question, answer) {
+    const historyDiv = document.getElementById("history");
+    const entry = document.createElement("div");
+    entry.classList.add("history-entry");
+    entry.innerHTML = `<strong>Q:</strong> ${question}<br><strong>A:</strong> ${answer}`;
+    historyDiv.prepend(entry);
+}
+
+function clearHistory() {
+    document.getElementById("history").innerHTML = "";
+}
+
+async function askQuestion() {
+    const question = document.getElementById("question").value;
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<img src='https://cdn-icons-png.flaticon.com/512/4712/4712027.png' class='agent-avatar'> Thinking...`;
+    document.getElementById("myChart").style.display = "none";
+
+    const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+
+    const text = `Question: ${data.question}\nSQL: ${data.sql}\nAnswer: ${data.answer}`;
+    typeAnswer(resultDiv, text);
+    addToHistory(data.question, data.answer);
+}
+
+async function getChart() {
+    const question = document.getElementById("question").value;
+    const chartType = document.getElementById("chartType").value;
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<img src='https://cdn-icons-png.flaticon.com/512/4712/4712027.png' class='agent-avatar'> Thinking...`;
+    const ctx = document.getElementById("myChart").getContext("2d");
+    document.getElementById("myChart").style.display = "block";
+
+    const res = await fetch("/chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+
+    const text = `Question: ${data.question}\nSQL: ${data.sql}`;
+    typeAnswer(resultDiv, text);
+    addToHistory(data.question, "Chart generated");
+
+    if (currentChart) {
+        currentChart.destroy();
+    }
+
+    currentChart = new Chart(ctx, {
+        type: chartType,
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Values',
+                data: data.values,
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)'
+                ]
+            }]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: { display: chartType !== 'bar' }
+            },
+            scales: (chartType === 'bar' || chartType === 'line') ? {
+                x: { ticks: { autoSkip: false } },
+                y: { beginAtZero: true }
+            } : {}
+        }
+    });
+}
+
+function downloadChart() {
+    if (!currentChart) {
+        alert("No chart to download!");
+        return;
+    }
+    const link = document.createElement('a');
+    link.href = currentChart.toBase64Image();
+    link.download = 'chart.png';
+    link.click();
+}
+
+function toggleDarkMode() {
+    document.body.classList.toggle("dark");
+}
+</script>
+
+</body>
+</html>
